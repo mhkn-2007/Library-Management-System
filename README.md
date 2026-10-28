@@ -1,31 +1,33 @@
 # Library Management System
 
-A lightweight REST API for managing a library catalog, built with FastAPI, SQLAlchemy, SQLite, and Pydantic.
+A lightweight asynchronous REST API for managing a library catalog, built with **FastAPI**, **SQLAlchemy 2.x**, **PostgreSQL**, and **Pydantic v2**.
 
 ## Overview
 
-The Library Management System provides a simple way to manage a collection of books through a clean REST API. It supports creating records, retrieving one or many books, updating book information, and deleting books.
-
-The project is intentionally minimal and uses a layered structure, which makes it a good starting point for a larger library application or for learning FastAPI and SQLAlchemy.
+The Library Management System provides a REST API for creating, retrieving, updating, and deleting book records. It uses SQLAlchemy's asynchronous API to communicate with PostgreSQL and keeps the application organized into separate layers for routing, business logic, database queries, models, and schemas.
 
 ## Features
 
-- Full CRUD support for books
-- Request validation with Pydantic v2
-- Duplicate record detection
-- Cursor-based pagination for listing books
-- SQLite persistence via the SQLAlchemy ORM
-- Auto-generated Swagger UI and ReDoc documentation
+- Full CRUD operations for books
+- Asynchronous database access with SQLAlchemy `AsyncSession`
+- PostgreSQL persistence through `asyncpg`
+- Environment-based database configuration using `.env`
+- Request and response validation with Pydantic v2
+- Duplicate book detection using title, author, and publication year
+- Cursor-based pagination when listing books
+- Automatic API documentation through Swagger UI and ReDoc
 - Layered architecture: routers, services, CRUD, models, and schemas
 
 ## Tech Stack
 
 - Python 3.10+
 - FastAPI
-- SQLAlchemy 2.x
-- SQLite
-- Pydantic v2
 - Uvicorn
+- SQLAlchemy 2.x (async)
+- PostgreSQL
+- `asyncpg`
+- Pydantic v2
+- `python-dotenv`
 
 ## Project Structure
 
@@ -33,36 +35,38 @@ The project is intentionally minimal and uses a layered structure, which makes i
 Library-Management-System/
 ├── app/
 │   ├── crud/
-│   │   └── book_crud.py        # Database queries
+│   │   └── book_crud.py        # Asynchronous database queries
 │   ├── database/
-│   │   └── database.py         # Engine, session factory, Base, get_db
+│   │   └── database.py         # Async engine, session factory, Base, get_db
 │   ├── models/
 │   │   └── book_model.py       # SQLAlchemy Book model
 │   ├── routers/
-│   │   └── book_router.py      # Route definitions
+│   │   └── book_router.py      # API route definitions
 │   ├── schemas/
 │   │   └── book_schemas.py     # Pydantic request/response schemas
 │   └── services/
 │       └── book_service.py     # Business logic and HTTP errors
 ├── main.py                     # Application entry point
+├── .env                        # Local environment variables (not committed)
+├── .gitignore
 ├── requirements.txt
 ├── LICENSE
-├── README.md
-└── .gitignore
+└── README.md
 ```
 
-### How a request flows
+### Request flow
 
 ```text
-Router  →  Service  →  CRUD  →  Database
-(HTTP)     (rules)     (queries)  (SQLite)
+Router  →  Service  →  CRUD  →  PostgreSQL
+(HTTP)     (rules)     (queries)  (database)
 ```
 
-- **Routers** define the endpoints and validate path and query parameters.
-- **Services** hold business rules (for example, rejecting duplicates) and raise HTTP errors.
-- **CRUD** contains the SQLAlchemy queries.
+- **Routers** define endpoints and handle HTTP parameters and dependencies.
+- **Services** contain business rules and raise HTTP errors.
+- **CRUD** functions execute database queries.
 - **Models** map Python classes to database tables.
-- **Schemas** define the shape of request and response data.
+- **Schemas** validate incoming data and shape outgoing responses.
+- **Database** configures the asynchronous SQLAlchemy engine and session factory.
 
 ## Getting Started
 
@@ -75,100 +79,159 @@ cd Library-Management-System
 
 ### 2. Create and activate a virtual environment
 
-On macOS/Linux:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-```
-
-On Windows (PowerShell):
+**Windows (PowerShell):**
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+```
+
+**macOS/Linux:**
+
+```bash
+python -m venv venv
+source venv/bin/activate
 ```
 
 ### 3. Install dependencies
 
+If `requirements.txt` is up to date:
+
 ```bash
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
-### 4. Run the application
-
-Run it from the project root, using either option:
+The main packages used by the project are:
 
 ```bash
-# Option A: entry point
-python main.py
+python -m pip install fastapi "uvicorn[standard]" "sqlalchemy[asyncio]" asyncpg pydantic python-dotenv
+```
 
-# Option B: Uvicorn directly
+### 4. Create the PostgreSQL database
+
+Make sure PostgreSQL is installed and running. Create a database for the project, for example:
+
+```sql
+CREATE DATABASE library_management_system;
+```
+
+Use a PostgreSQL role that has permission to connect to and work with this database.
+
+### 5. Configure environment variables
+
+Create a `.env` file in the project root, alongside `main.py`:
+
+```env
+DATABASE_URL=postgresql+asyncpg://postgres:YOUR_PASSWORD@localhost:5432/library_management_system
+```
+
+Replace `YOUR_PASSWORD` with your PostgreSQL password. Do not add `DATABASE_URL=` twice. The URL format is:
+
+```text
+postgresql+asyncpg://USERNAME:PASSWORD@HOST:PORT/DATABASE_NAME
+```
+
+Keep `.env` out of version control. Add this entry to `.gitignore`:
+
+```gitignore
+.env
+```
+
+If your password contains URL-reserved characters such as `@`, `/`, or `#`, URL-encode those characters in the connection URL.
+
+### 6. Run the application
+
+Run the command from the project root:
+
+```bash
 python -m uvicorn main:app --reload
+```
+
+If the entry point is configured to run Uvicorn directly, you can also use:
+
+```bash
+python main.py
 ```
 
 Once the server is running, open:
 
-- Swagger UI: http://127.0.0.1:8000/docs
-- ReDoc: http://127.0.0.1:8000/redoc
+- **Swagger UI:** http://127.0.0.1:8000/docs
+- **ReDoc:** http://127.0.0.1:8000/redoc
 
-The SQLite database file `app.db` and the `books` table are created automatically on first run.
+The application is configured to create registered model tables on startup if its lifespan handler calls `Base.metadata.create_all`. This project does not currently use Alembic migrations.
 
 ## API Endpoints
 
 | Method | Endpoint | Description | Success status |
 | --- | --- | --- | --- |
-| GET | `/books` | List books with pagination | 200 |
-| GET | `/books/{book_id}` | Retrieve a specific book | 200 |
-| POST | `/books` | Create a new book | 201 |
-| PATCH | `/books/{book_id}` | Partially update a book | 200 |
-| DELETE | `/books/{book_id}` | Delete a book | 204 |
+| `GET` | `/books` | List books with pagination | `200 OK` |
+| `GET` | `/books/{book_id}` | Retrieve one book | `200 OK` |
+| `POST` | `/books` | Create a book | `201 Created` |
+| `PATCH` | `/books/{book_id}` | Partially update a book | `200 OK` |
+| `DELETE` | `/books/{book_id}` | Delete a book | `204 No Content` |
 
 ## Book Schema
 
 | Field | Type | Rules |
 | --- | --- | --- |
-| `id` | integer | Primary key, generated automatically |
-| `title` | string | 1 to 50 characters |
-| `author_name` | string | 1 to 50 characters |
+| `id` | integer | Generated primary key |
+| `title` | string | 1–50 characters |
+| `author_name` | string | 1–50 characters |
 | `publish_year` | integer | Between 1450 and the current year |
 
-## Validation Rules
+## Validation and Error Responses
 
-The API validates incoming data before saving it:
+- `title` and `author_name` must contain between 1 and 50 characters.
+- `publish_year` must be between `1450` and the current year.
+- A book with the same title, author, and publication year is rejected as a duplicate.
+- `book_id` must be greater than `0`.
+- `PATCH` requests can include only the fields to update; omitted fields remain unchanged.
 
-- `title` and `author_name` cannot be empty and must not exceed 50 characters
-- `publish_year` must be between `1450` and the current year
-- A book is rejected if another book has the same `title`, `author_name`, and `publish_year`
-- `book_id` in the URL must be greater than 0
-
-## Error Responses
-
-| Status | When |
+| Status | Meaning |
 | --- | --- |
-| 400 | A book with the same title, author, and year already exists |
-| 404 | The requested book does not exist |
-| 422 | The request body or parameters failed validation |
+| `400 Bad Request` | A book with the same title, author, and publication year already exists |
+| `404 Not Found` | The requested book does not exist |
+| `422 Unprocessable Entity` | Request data or parameters failed validation |
 
-Error bodies follow FastAPI's standard format, for example:
+Example error response:
 
 ```json
-{ "detail": "Book not found" }
+{
+  "detail": "Book not found"
+}
 ```
 
 ## Pagination
 
-`GET /books` uses cursor-based pagination with two optional query parameters:
+`GET /books` supports cursor-based pagination using these query parameters:
 
 | Parameter | Default | Description |
 | --- | --- | --- |
 | `limit` | `10` | Maximum number of books to return |
-| `last_id` | none | Return only books with an ID greater than this value |
+| `last_id` | omitted | Return books whose ID is greater than this value |
 
-The response contains the books and a cursor for the next page. To fetch the next page, pass `next_last_id` as `last_id`. When there are no more results, `items` is empty and `next_last_id` is `null`.
+Example:
 
-```bash
-curl "http://127.0.0.1:8000/books?limit=5&last_id=10"
+```text
+GET /books?limit=5&last_id=10
+```
+
+The response includes an `items` array and `next_last_id`. Use the returned `next_last_id` as the `last_id` value in the next request. If `items` is empty, there are no more results for that query.
+
+Example response:
+
+```json
+{
+  "items": [
+    {
+      "id": 11,
+      "title": "Dune",
+      "author_name": "Frank Herbert",
+      "publish_year": 1965
+    }
+  ],
+  "next_last_id": 11
+}
 ```
 
 ## Example Requests
@@ -202,25 +265,15 @@ Example response:
 curl "http://127.0.0.1:8000/books?limit=10"
 ```
 
-Example response:
+### Retrieve a book
 
-```json
-{
-  "items": [
-    {
-      "id": 1,
-      "title": "Dune",
-      "author_name": "Frank Herbert",
-      "publish_year": 1965
-    }
-  ],
-  "next_last_id": 1
-}
+```bash
+curl "http://127.0.0.1:8000/books/1"
 ```
 
-### Update a book
+### Partially update a book
 
-Send only the fields you want to change:
+Send only the fields that should change:
 
 ```bash
 curl -X PATCH "http://127.0.0.1:8000/books/1" \
@@ -236,17 +289,10 @@ curl -X DELETE "http://127.0.0.1:8000/books/1"
 
 ## Notes
 
-- `app.db` is created in the directory you start the server from. It is a local data file, so keep it in `.gitignore`.
-- The project does not use database migrations. If you change the model's columns after `app.db` exists, delete the file so the table is recreated.
-
-## Possible Next Steps
-
-- Member management
-- Borrowing and returning books
-- Categories and genres
-- Search and filtering
-- Authentication and authorization
-- Automated tests and CI workflows
+- PostgreSQL must be running and the database specified by `DATABASE_URL` must already exist.
+- Keep `.env` and other secrets out of source control.
+- The project does not currently use Alembic. `Base.metadata.create_all` creates missing tables but does not update existing tables when model columns change. Use migrations for schema changes in a long-lived project.
+- The project focuses on the book catalog; member management and borrowing workflows are not implemented.
 
 ## License
 
