@@ -1,15 +1,30 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+import os
 
-DATABASE_URL = "sqlite:///./app.db"
+from dotenv import load_dotenv
 
-engine = create_engine(
+from typing import AsyncGenerator
+
+from sqlalchemy.orm import DeclarativeBase
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+load_dotenv()
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL is not set")
+
+engine = create_async_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False},
+    echo=False,
+    future=True,
 )
 
-SessionLocal = sessionmaker(
+AsyncSessionLocal = async_sessionmaker(
     bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
     autocommit=False,
     autoflush=False,
 )
@@ -19,11 +34,10 @@ class Base(DeclarativeBase):
     pass
 
 
-def get_db():
-    db = SessionLocal()
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
-    try:
-        yield db
-
-    finally:
-        db.close()
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.close()
